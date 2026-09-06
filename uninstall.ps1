@@ -6,21 +6,6 @@ Param(
 
 $ErrorActionPreference = 'Stop'
 
-$ZedExtensions = @(
-    'ascx','asp','aspx','bash','bash_login','bash_logout','bash_profile','bashrc','bib','bowerrc',
-    'c','c++','cc','cfg','cjs','clj','cljs','cljx','clojure','cls','cmake','code-workspace',
-    'coffee','config','containerfile','cpp','cs','cshtml','csproj','css','csv','csx','ctp','cxx',
-    'dart','diff','dockerfile','dot','dtd','editorconfig','edn','erb','eyaml','eyml','fs','fsi',
-    'fsscript','fsx','gemspec','gitattributes','gitconfig','gitignore','go','gradle','groovy','h',
-    'h++','handlebars','hbs','hh','hpp','htm','html','hxx','ini','ipynb','jade','jav','java','js',
-    'jscsrc','jshintrc','jshtm','json','jsp','jsx','less','log','lua','m','makefile','markdown',
-    'md','mdoc','mdown','mdtext','mdtxt','mdwn','mjs','mk','mkd','mkdn','ml','mli','npmignore',
-    'php','phtml','pl','pl6','plist','pm','pm6','pod','pp','profile','properties','ps1','psd1',
-    'psgi','psm1','py','pyi','r','rb','rhistory','rprofile','rs','rst','rt','sass','scss','sh',
-    'shtml','sql','svg','t','tex','toml','ts','tsx','txt','vb','vue','wxi','wxl','wxs','xaml',
-    'xhtml','xml','yaml','yml','zsh'
-)
-
 function Invoke-ShellAssociationRefresh {
     $source = @"
 using System;
@@ -35,28 +20,41 @@ public static class ShellRefresh {
     [ShellRefresh]::SHChangeNotify(0x08000000, 0, [IntPtr]::Zero, [IntPtr]::Zero)
 }
 
+function Test-OverlayIconPath {
+    param([string]$Path)
+    if ([string]::IsNullOrWhiteSpace($Path)) { return $false }
+    return $Path.StartsWith("$IconRoot\", [System.StringComparison]::OrdinalIgnoreCase) -and
+           $Path.EndsWith('.ico', [System.StringComparison]::OrdinalIgnoreCase)
+}
+
 $removed = 0
-foreach ($ext in $ZedExtensions) {
-    $defaultIconKey = "HKCU:\Software\Classes\$ProgIdPrefix.$ext\DefaultIcon"
-    if (Test-Path $defaultIconKey) {
-        if ($PSCmdlet.ShouldProcess($defaultIconKey, 'Remove overlay DefaultIcon key')) {
-            Remove-Item -Path $defaultIconKey -Recurse -Force
-            $removed += 1
+foreach ($progId in Get-ChildItem -Path "HKCU:\Software\Classes\$ProgIdPrefix.*" -ErrorAction SilentlyContinue) {
+    $defaultIconKey = Join-Path $progId.PSPath 'DefaultIcon'
+    if (Test-Path -LiteralPath $defaultIconKey) {
+        $value = (Get-ItemProperty -LiteralPath $defaultIconKey -ErrorAction SilentlyContinue).'(default)'
+        if (Test-OverlayIconPath $value) {
+            if ($PSCmdlet.ShouldProcess($defaultIconKey, 'Remove overlay DefaultIcon key')) {
+                Remove-Item -LiteralPath $defaultIconKey -Recurse -Force
+                $removed += 1
+            }
         }
     }
 }
 
 $sourceFileKey = "HKCU:\Software\Classes\${ProgIdPrefix}SourceFile\DefaultIcon"
-if (Test-Path $sourceFileKey) {
-    if ($PSCmdlet.ShouldProcess($sourceFileKey, 'Remove overlay SourceFile DefaultIcon key')) {
-        Remove-Item -Path $sourceFileKey -Recurse -Force
+if (Test-Path -LiteralPath $sourceFileKey) {
+    $value = (Get-ItemProperty -LiteralPath $sourceFileKey -ErrorAction SilentlyContinue).'(default)'
+    if (Test-OverlayIconPath $value) {
+        if ($PSCmdlet.ShouldProcess($sourceFileKey, 'Remove overlay SourceFile DefaultIcon key')) {
+            Remove-Item -LiteralPath $sourceFileKey -Recurse -Force
+        }
     }
 }
 
 $iconParent = Split-Path -Parent $IconRoot
-if (Test-Path $iconParent) {
+if (Test-Path -LiteralPath $iconParent) {
     if ($PSCmdlet.ShouldProcess($iconParent, 'Remove copied Zed file icon assets')) {
-        Remove-Item -Path $iconParent -Recurse -Force
+        Remove-Item -LiteralPath $iconParent -Recurse -Force
     }
 }
 
